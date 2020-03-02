@@ -1,0 +1,114 @@
+contract aertstore =
+
+  record post = 
+    { creatorAddress : address,
+      url            : string,
+      nameofpost  : string,
+      currentPrice   : int,
+      description  : string,
+      sold           : bool,
+      reviews        : int}
+
+  record state = 
+    { posts : map(int, post),
+      postLength : int,
+      bidders : map(int,address),
+      bidderLength : int }
+
+  entrypoint init() = 
+    { posts = {}, 
+      postLength = 0,
+      bidders = {},
+      bidderLength = 0 }
+
+  entrypoint getpost(index:int) : post = 
+    switch(Map.lookup(index, state.posts))
+      None => abort("post does not exist with this index")
+      Some(x) => x  
+
+  stateful entrypoint registerpost(url' : string, nameofpost': string, description' : string, currentPrice': int) =
+    let post = { creatorAddress = Call.caller, url = url', nameofpost = nameofpost', currentPrice = currentPrice', description = description', sold = false, reviews = state.bidderLength}  
+    let index = getpostLength() + 1 
+    put(state{posts[index] = post, postLength  = index})
+
+
+  entrypoint getpostLength() : int = 
+    state.postLength
+
+
+
+  //bid functionality
+
+  payable stateful entrypoint bid(index: int) =
+    let post = getpost(index)
+    let addresses = Call.caller
+    let updatedBid = Call.value
+    let contractBalance = getContractBalance()
+    put(state{bidders[index]= addresses})
+    
+    biddingSecurity()
+
+    
+
+
+    if(post.sold == true)
+      abort("post has been sold")
+      
+    //first bid
+    //if(Call.value > post.currentPrice &&  contractBalance == 0)
+      //Chain.spend(Contract.address, Call.value)
+    
+    
+      //second bid
+    //if(Call.value > post.currentPrice && contractBalance != 0)
+      //let previousbidder = getBidderAddress(index)
+      //Chain.spend(previousbidder,Contract.balance)
+  
+    //elif(Call.value < updatedBid)
+      //abort("your bid is lower than the current bid")
+    //else
+      //abort("you need to enter a value higher than 0 ")
+    let updatedpost = state.posts{ [index].currentPrice = updatedBid}
+    let index = getBidderLength() + 1
+
+
+    put(state { posts = updatedpost})
+    
+    put(state{bidderLength = index})
+
+
+  //length of registered bidders
+  entrypoint getBidderLength() : int = 
+    state.bidderLength   
+
+
+  //stores address of registered bidsers
+
+  entrypoint getBidderAddress(index:int) = 
+    switch(Map.lookup(index, state.bidders))
+      None => abort("bidder does not exist with this index")
+      Some(x) => x 
+
+  // stateful entrypoint bidders(name:string)  = 
+  // let bidder = { bidderAddress = Call.caller, updatedPrice = Call.value, name = name }
+  //let index = getBidderLength() + 1
+  //put(state{bidders[index] = bidders, bidderLength  = index})
+  //put(state{bidders[index] = bidders, bidders  = bidder})
+
+  stateful entrypoint closeBid(index : int) = 
+    put(state{posts[index].sold = true})
+    let post = getpost(index)
+    let total = Contract.balance
+    let creatorsAddress = post.creatorAddress
+    Chain.spend(creatorsAddress: address, post.currentPrice: int)
+
+
+  public entrypoint getContractBalance() : int =
+    Contract.balance
+
+  public entrypoint getContractowner() : address =
+    Contract.creator
+
+  stateful entrypoint biddingSecurity() = 
+    if(Call.caller == Contract.creator)
+      abort("you cannot bid on your own post")
